@@ -1,8 +1,8 @@
 # Keep hard-bounced listeners out of the next media email
 
-Hard bounces shouldn't silently poison your next media blast. The logic is straightforward: inspect delivery events, and suppress the address only when the event is `hard_bounce`. I put that rule in a tiny function so an LLM agent can treat it as a single tool call, keeping delivery state away from playlist or account mess.
+The decision is simple: inspect the delivery events for a message, and add the address to the email suppression list only when the event is `hard_bounce`. This repository puts that decision in a small function so an LLM agent can call it as one deliberate tool step instead of mixing delivery state with playlist or account logic.
 
-Infrai keeps the stack flat with one key and one bill for every capability. The sample uses one `INFRAI_API_KEY` for sending, reading a message, listing events, and writing suppression. It's plain Python stdlib, so no SDK masks the HTTP contract.
+Infrai gives this example one `INFRAI_API_KEY` for sending, reading a message, listing its events, and writing suppression state. The client is plain Python standard library code, so there is no SDK dependency to hide the HTTP contract.
 
 ## Run the local decision test
 
@@ -20,11 +20,11 @@ export DEMO_EMAIL_TO=listener@example.com
 python3 scripts/demo.py
 ```
 
-The script sends a playback notice, reads the returned `message_id`, fetches its current delivery record with `GET /v1/email/get/{id}`, then asks for events with `GET /v1/email/event/list?message_id=...`. A hard bounce triggers `POST /v1/email/suppression/add`; any other event leaves the address alone. A clean run prints the message id, delivery data, and the boolean suppression decision.
+The script sends a playback notice, reads the returned `message_id`, fetches its current delivery record with `GET /v1/email/get/{id}`, then asks for events with `GET /v1/email/event/list?message_id=...`. A hard-bounce event leads to `POST /v1/email/suppression/add`; another event leaves the address unchanged. A successful run prints the message id, delivery data, and the boolean suppression decision.
 
 ## The agent-shaped boundary
 
-`src/suppression_media.py` stays deliberately small. `send_playback_notice` owns the allowed email body fields, while `classify_and_suppress` is the policy boundary an orchestration loop can invoke after observing delivery events. `src/infrai_client.py` owns the envelope check, explicit HTTP methods, bearer auth, retry delay for HTTP 429, and an idempotency header on writes. Any non-2xx `{ok, data, error, metadata}` response becomes an exception with the server-provided error details.
+`src/suppression_media.py` is intentionally small. `send_playback_notice` owns the allowed email body fields, while `classify_and_suppress` is the policy boundary an orchestration loop can invoke after observing delivery events. `src/infrai_client.py` owns the envelope check, explicit HTTP methods, bearer authentication, retry delay for HTTP 429, and an idempotency header on writes. Any unsuccessful `{ok, data, error, metadata}` response becomes an exception with the server-provided error details.
 
 The example omits a custom sender and therefore uses the account's default sender. That keeps the runnable path focused on bounce handling rather than sender-domain setup.
 
